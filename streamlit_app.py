@@ -117,9 +117,15 @@ if "stop_sending" not in st.session_state:
 if "sent_count" not in st.session_state:
     st.session_state.sent_count = 0
 
-# initialize live sent counter
-if "sent_count" not in st.session_state:
-    st.session_state.sent_count = 0
+# live counter placeholder (shows 0 initially)
+counter_col1, counter_col2 = st.columns(2)
+
+with counter_col1:
+    sent_count_placeholder = st.empty()
+    sent_count_placeholder.metric("Emails sent", st.session_state.sent_count)
+
+with counter_col2:
+    cooling_timer_placeholder = st.empty()
 
 # ---------------- Email Config ----------------
 st.subheader("Email configuration")
@@ -184,7 +190,7 @@ if send_clicked:
     st.session_state.sending = True
     st.session_state.stop_sending = False
     st.session_state.sent_count = 0
-   
+    
     progress = st.progress(0)
     total = len(df)
     sent = 0
@@ -255,7 +261,7 @@ if send_clicked:
                 with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
                     server.login(from_email, app_password)
                     server.send_message(msg)
-           
+            
         # increment local and session counters
             sent += 1
             st.session_state.sent_count += 1
@@ -267,6 +273,27 @@ if send_clicked:
                 st.write(f"Emails sent: {st.session_state.sent_count}")
 
             st.success(f"✅ Sent to {recip_addr}")
+     
+ # -------- 🧊 Cooling period after every 5 emails --------
+            if st.session_state.sent_count % 5 == 0:
+                cooling_time = 120  # 2 minutes
+                start_cool = time.time()
+
+                while True:
+                    elapsed = time.time() - start_cool
+                    remaining = int(cooling_time - elapsed)
+
+                    if remaining <= 0:
+                        break
+
+                    mins, secs = divmod(remaining, 60)
+                    cooling_timer_placeholder.info(
+                        f"🧊 Cooling period: {mins:02d}:{secs:02d} remaining"
+                    )
+                    time.sleep(1)
+
+                cooling_timer_placeholder.empty()
+
         except Exception as e:
             st.error(f"Failed to send to {recip_addr}: {e}")
             failed_rows.append({**rowd, "__reason": str(e)})
@@ -289,7 +316,7 @@ if send_clicked:
         countdown_placeholder.empty()
 
     st.info(f"Done — attempted {total}, sent {sent}, skipped {len(skipped_rows)}, failed {len(failed_rows)}")
-   
+    
     # Show total sent count separately
     #st.markdown(f"### Total Emails Sent: {sent}")
     st.markdown(f"**Total emails successfully sent:** {st.session_state.sent_count}")
@@ -317,5 +344,5 @@ if send_clicked:
             mime="text/csv",
             key="download_failed"
         )
-       
+        
 st.session_state.sending = False
